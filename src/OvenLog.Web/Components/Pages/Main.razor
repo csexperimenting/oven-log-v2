@@ -1,0 +1,611 @@
+@page "/"
+@page "/main"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@using OvenLog.Web.Services
+@inject OvenLogService OvenLogService
+@inject BarcodeInputService BarcodeInputService
+@inject AppStateService AppState
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Main</PageTitle>
+
+<div class="main-container" @onkeydown="HandleKeyDown" @onkeydown:preventDefault="@BarcodeInputService.IsBarcodeMode" tabindex="0" @ref="_mainContainer">
+    <!-- Top Controls Row -->
+    <div class="top-controls">
+        <div class="control-group">
+            <label>TRAK ID</label>
+            <input type="text" @bind="_trakIdInput" @bind:event="oninput" @onkeydown="HandleTrakIdKeyDown" placeholder="Scan or enter TRAK ID" />
+        </div>
+        
+        <div class="control-group">
+            <label>Oven</label>
+            <select @bind="_selectedBoxId" @bind:after="OnBoxSelected">
+                <option value="0">-- Select Oven --</option>
+                @foreach (var box in _boxes)
+                {
+                    <option value="@box.Id">@box.ToolId (@box.BoxType.Name)</option>
+                }
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>Temp</label>
+            <div class="temp-input">
+                <input type="number" @bind="AppState.Temperature" step="1" />
+                <span>@(_selectedBox?.TemperatureScale ?? "C")</span>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Start Time</label>
+            <input type="datetime-local" @bind="_startTimeLocal" />
+        </div>
+        
+        <div class="control-group">
+            <label>Qty</label>
+            <input type="number" @bind="AppState.Quantity" min="1" style="width: 60px;" />
+        </div>
+        
+        <div class="control-group">
+            <label>Application</label>
+            <select @bind="_selectedApplicationId" @bind:after="OnApplicationSelected">
+                <option value="0">-- Select --</option>
+                @foreach (var app in _applications)
+                {
+                    <option value="@app.Id">@app.Name</option>
+                }
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>Notes</label>
+            <input type="text" @bind="AppState.Note" placeholder="Notes" />
+        </div>
+        
+        <div class="control-group">
+            <label>hh:mm</label>
+            <input type="text" @bind="_bakeTimeInput" placeholder="0:30" style="width: 70px;" @onblur="ParseBakeTime" />
+        </div>
+        
+        <div class="mode-indicator">
+            <span class="@(BarcodeInputService.IsBarcodeMode ? "mode-barcode" : "mode-manual")">
+                @(BarcodeInputService.IsBarcodeMode ? "BARCODE MODE" : "MANUAL MODE")
+            </span>
+            <button class="btn-mode" @onclick="ToggleMode">
+                @(BarcodeInputService.IsBarcodeMode ? "Unlock for manual entry" : "Lock for barcode entry")
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <!-- TRAK List (Left Panel) -->
+        <div class="trak-panel">
+            <h3>TRAK List</h3>
+            <div class="trak-list">
+                @foreach (var trak in _availableTraks)
+                {
+                    var isSelected = AppState.SelectedTraks.Any(t => t.Id == trak.Id);
+                    <div class="trak-item @(isSelected ? "selected" : "")" @onclick="() => ToggleTrakSelection(trak)">
+                        <span class="trak-id">@trak.TrakId</span>
+                        <span class="trak-qty">1</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Oven List (Right Panel) -->
+        <div class="oven-panel">
+            <h3>TRAKs in Ovens</h3>
+            <div class="oven-list-container">
+                <table class="oven-table">
+                    <thead>
+                        <tr>
+                            <th>Oven</th>
+                            <th>Location</th>
+                            <th>PN</th>
+                            <th>SN</th>
+                            <th>TRAK</th>
+                            <th>Q</th>
+                            <th>Temp</th>
+                            <th>Badge</th>
+                            <th>In</th>
+                            <th>Application</th>
+                            <th>Time</th>
+                            <th>Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var evt in _traksInOvens)
+                        {
+                            var isSelected = AppState.SelectedOvenEvents.Any(e => e.Id == evt.Id);
+                            <tr class="@(isSelected ? "selected" : "")" @onclick="() => ToggleOvenEventSelection(evt)">
+                                <td>@evt.Box.ToolId</td>
+                                <td>@evt.Box.Location.Name</td>
+                                <td>@evt.Trak.Part?.PartNumber</td>
+                                <td>@evt.Trak.SerialNumber</td>
+                                <td>@evt.Trak.TrakId</td>
+                                <td>@evt.Quantity</td>
+                                <td>@evt.Temperature °@evt.Box.TemperatureScale</td>
+                                <td>@evt.UserIn.Badge</td>
+                                <td>@evt.DateIn.ToLocalTime().ToString("M/d h:mm tt")</td>
+                                <td>@evt.Application?.Name</td>
+                                <td class="@(evt.TimeRemaining?.TotalMinutes <= 5 ? "time-warning" : "")">@FormatTimeRemaining(evt.TimeRemaining)</td>
+                                <td>@evt.Note</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Button Bar -->
+    <div class="button-bar">
+        <button class="btn btn-check" @onclick="ToggleAllTraks" title="Select/Deselect All TRAKs">&#10003;</button>
+        <button class="btn btn-add" @onclick="AddTraksToOven" disabled="@(!AppState.CanAdd())">Add</button>
+        <button class="btn btn-history" @onclick="ShowHistory">History</button>
+        <button class="btn btn-remove" @onclick="RemoveFromOven" disabled="@(!AppState.CanRemove())">Remove</button>
+        <button class="btn btn-reset" @onclick="ResetForm">Reset</button>
+        <button class="btn btn-customize" @onclick="GoToCustomize">Customize</button>
+        <button class="btn btn-ovenon" @onclick="RecordOvenOn" disabled="@(!CanRecordOvenOn())">Oven On</button>
+        <button class="btn btn-tools" @onclick="GoToTools">Tools</button>
+        <button class="btn btn-exit" @onclick="Exit">Exit</button>
+    </div>
+</div>
+
+@if (_showHistoryModal)
+{
+    <div class="modal-overlay" @onclick="CloseHistory">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <h2>TRAK History</h2>
+            <div class="history-list">
+                @foreach (var evt in _historyEvents)
+                {
+                    <div class="history-item">
+                        <div><strong>TRAK:</strong> @evt.Trak.TrakId</div>
+                        <div><strong>Oven:</strong> @evt.Box.ToolId (@evt.Box.Location.Name)</div>
+                        <div><strong>In:</strong> @evt.DateIn.ToLocalTime().ToString("g") by @evt.UserIn.FullName</div>
+                        @if (evt.DateOut.HasValue)
+                        {
+                            <div><strong>Out:</strong> @evt.DateOut.Value.ToLocalTime().ToString("g") by @evt.UserOut?.FullName</div>
+                            <div><strong>Actual Time:</strong> @FormatTimeSpan(evt.ActualBakeTime)</div>
+                        }
+                        else
+                        {
+                            <div><strong>Status:</strong> Still in oven</div>
+                        }
+                        <div><strong>Application:</strong> @(evt.Application?.Name ?? "N/A")</div>
+                        <div><strong>Note:</strong> @(evt.Note ?? "N/A")</div>
+                        <hr />
+                    </div>
+                }
+            </div>
+            <button class="btn" @onclick="CloseHistory">Close</button>
+        </div>
+    </div>
+}
+
+@if (_showConfirmRemove)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <h2>Confirm Removal</h2>
+            <p>Some TRAKs still have time remaining on their bake. Are you sure you want to remove them prematurely?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-remove" @onclick="ConfirmRemove">Yes, Remove</button>
+                <button class="btn" @onclick="CancelRemove">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ElementReference _mainContainer;
+    private List<Box> _boxes = new();
+    private List<Application> _applications = new();
+    private List<Trak> _availableTraks = new();
+    private List<OvenEvent> _traksInOvens = new();
+    private List<OvenEvent> _historyEvents = new();
+    
+    private string _trakIdInput = string.Empty;
+    private int _selectedBoxId;
+    private int _selectedApplicationId;
+    private Box? _selectedBox;
+    private string _bakeTimeInput = "0:30";
+    private DateTime _startTimeLocal = DateTime.Now;
+    
+    private bool _showHistoryModal;
+    private bool _showConfirmRemove;
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Set default user for testing
+        var users = await OvenLogService.GetAllUsersAsync();
+        AppState.CurrentUser = users.FirstOrDefault(u => u.Login == "test.user") ?? users.FirstOrDefault();
+        
+        await LoadDataAsync();
+        
+        // Subscribe to barcode events
+        BarcodeInputService.OnBarcodeScanned += HandleBarcodeScanned;
+        AppState.OnStateChanged += StateHasChanged;
+        
+        // Register known barcodes
+        BarcodeInputService.RegisterOvenIds(_boxes.Select(b => b.ToolId));
+        BarcodeInputService.RegisterApplicationBarcodes(_applications.Select(a => a.Barcode ?? ""));
+        var standardTimes = await OvenLogService.GetAllStandardTimesAsync();
+        BarcodeInputService.RegisterTimeBarcodes(standardTimes.Select(t => t.Barcode));
+        
+        // Start refresh timer for time remaining updates
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _boxes = await OvenLogService.GetAllBoxesAsync();
+        _applications = await OvenLogService.GetAllApplicationsAsync();
+        _availableTraks = await OvenLogService.GetAvailableTraksAsync();
+        _traksInOvens = await OvenLogService.GetTraksInOvensAsync();
+    }
+
+    private async Task RefreshOvenListAsync()
+    {
+        _traksInOvens = await OvenLogService.GetTraksInOvensAsync();
+        _availableTraks = await OvenLogService.GetAvailableTraksAsync();
+        StateHasChanged();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        BarcodeInputService.HandleKeyDown(e.Key);
+    }
+
+    private async Task HandleTrakIdKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Tab" || e.Key == "Enter")
+        {
+            await ProcessTrakIdInput();
+        }
+    }
+
+    private async Task ProcessTrakIdInput()
+    {
+        if (string.IsNullOrWhiteSpace(_trakIdInput))
+            return;
+
+        var trak = await OvenLogService.GetTrakByIdAsync(_trakIdInput);
+        if (trak != null)
+        {
+            // Check if TRAK is already in oven
+            if (await OvenLogService.IsTrakInOvenAsync(trak.Id))
+            {
+                // Select it in the oven list
+                var evt = await OvenLogService.GetEventByTrakInOvenAsync(trak.Id);
+                if (evt != null)
+                {
+                    AppState.AddOvenEvent(evt);
+                }
+            }
+            else
+            {
+                // Add to TRAK list
+                AppState.AddTrak(trak);
+                if (!_availableTraks.Any(t => t.Id == trak.Id))
+                {
+                    _availableTraks.Add(trak);
+                }
+            }
+        }
+        else
+        {
+            // Create new TRAK
+            trak = await OvenLogService.CreateOrGetTrakAsync(_trakIdInput);
+            AppState.AddTrak(trak);
+            _availableTraks.Add(trak);
+        }
+
+        _trakIdInput = string.Empty;
+    }
+
+    private async void HandleBarcodeScanned(object? sender, BarcodeScannedEventArgs e)
+    {
+        await InvokeAsync(async () =>
+        {
+            switch (e.Type)
+            {
+                case BarcodeType.Trak:
+                    _trakIdInput = e.Barcode;
+                    await ProcessTrakIdInput();
+                    break;
+                    
+                case BarcodeType.Oven:
+                    var box = await OvenLogService.GetBoxByToolIdAsync(e.Barcode);
+                    if (box != null)
+                    {
+                        _selectedBoxId = box.Id;
+                        await OnBoxSelected();
+                    }
+                    break;
+                    
+                case BarcodeType.Application:
+                    var app = await OvenLogService.GetApplicationByBarcodeAsync(e.Barcode);
+                    if (app != null)
+                    {
+                        _selectedApplicationId = app.Id;
+                        await OnApplicationSelected();
+                    }
+                    break;
+                    
+                case BarcodeType.StandardTime:
+                    var time = await OvenLogService.GetStandardTimeByBarcodeAsync(e.Barcode);
+                    if (time != null)
+                    {
+                        AppState.BakeTimeHours = time.Hours;
+                        _bakeTimeInput = time.Description;
+                    }
+                    break;
+                    
+                case BarcodeType.ActionReset:
+                    ResetForm();
+                    break;
+                    
+                case BarcodeType.ActionOvenOn:
+                    await RecordOvenOn();
+                    break;
+                    
+                case BarcodeType.ActionAdd:
+                    await AddTraksToOven();
+                    break;
+                    
+                case BarcodeType.ActionRemove:
+                    await RemoveFromOven();
+                    break;
+            }
+            StateHasChanged();
+        });
+    }
+
+    private async Task OnBoxSelected()
+    {
+        _selectedBox = _boxes.FirstOrDefault(b => b.Id == _selectedBoxId);
+        AppState.SelectedBox = _selectedBox;
+    }
+
+    private async Task OnApplicationSelected()
+    {
+        var app = _applications.FirstOrDefault(a => a.Id == _selectedApplicationId);
+        AppState.SelectedApplication = app;
+        if (app?.DefaultBakeTime.HasValue == true)
+        {
+            _bakeTimeInput = FormatHoursToHHMM(app.DefaultBakeTime.Value);
+        }
+    }
+
+    private void ParseBakeTime()
+    {
+        if (TryParseHHMM(_bakeTimeInput, out var hours))
+        {
+            AppState.BakeTimeHours = hours;
+        }
+    }
+
+    private bool TryParseHHMM(string input, out double hours)
+    {
+        hours = 0;
+        if (string.IsNullOrWhiteSpace(input))
+            return false;
+
+        var parts = input.Split(':');
+        if (parts.Length == 2 && int.TryParse(parts[0], out var h) && int.TryParse(parts[1], out var m))
+        {
+            hours = h + (m / 60.0);
+            return true;
+        }
+        if (double.TryParse(input, out hours))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    private string FormatHoursToHHMM(double hours)
+    {
+        var h = (int)hours;
+        var m = (int)((hours - h) * 60);
+        return $"{h}:{m:D2}";
+    }
+
+    private void ToggleTrakSelection(Trak trak)
+    {
+        AppState.ToggleTrak(trak);
+    }
+
+    private void ToggleOvenEventSelection(OvenEvent evt)
+    {
+        AppState.ToggleOvenEvent(evt);
+    }
+
+    private void ToggleAllTraks()
+    {
+        if (AppState.SelectedTraks.Count == _availableTraks.Count)
+        {
+            AppState.DeselectAllTraks();
+        }
+        else
+        {
+            AppState.SelectAllTraks(_availableTraks);
+        }
+    }
+
+    private async Task AddTraksToOven()
+    {
+        if (!AppState.CanAdd())
+            return;
+
+        // Check for warm-up
+        if (_selectedBox != null && !_selectedBox.HasDigitalDisplay)
+        {
+            if (await OvenLogService.IsBoxWarmingUpAsync(_selectedBox.Id))
+            {
+                // Show warning - oven is still warming up
+                return;
+            }
+        }
+
+        ParseBakeTime();
+        AppState.StartTime = _startTimeLocal.ToUniversalTime();
+
+        foreach (var trak in AppState.SelectedTraks.ToList())
+        {
+            await OvenLogService.AddTrakToOvenAsync(
+                trak.Id,
+                _selectedBox!.Id,
+                AppState.CurrentUser!.Id,
+                AppState.Temperature,
+                AppState.BakeTimeHours,
+                AppState.Quantity,
+                AppState.StartTime,
+                _selectedApplicationId > 0 ? _selectedApplicationId : null,
+                string.IsNullOrWhiteSpace(AppState.Note) ? null : AppState.Note
+            );
+        }
+
+        await RefreshOvenListAsync();
+        AppState.ClearTrakSelection();
+    }
+
+    private async Task RemoveFromOven()
+    {
+        if (!AppState.CanRemove())
+            return;
+
+        // Check if any have time remaining
+        var hasTimeRemaining = AppState.SelectedOvenEvents.Any(e => e.TimeRemaining?.TotalSeconds > 0);
+        if (hasTimeRemaining)
+        {
+            _showConfirmRemove = true;
+            return;
+        }
+
+        await PerformRemove();
+    }
+
+    private async Task ConfirmRemove()
+    {
+        _showConfirmRemove = false;
+        await PerformRemove();
+    }
+
+    private void CancelRemove()
+    {
+        _showConfirmRemove = false;
+    }
+
+    private async Task PerformRemove()
+    {
+        foreach (var evt in AppState.SelectedOvenEvents.ToList())
+        {
+            await OvenLogService.RemoveTrakFromOvenAsync(evt.Id, AppState.CurrentUser!.Id);
+        }
+
+        await RefreshOvenListAsync();
+        AppState.ClearOvenEventSelection();
+    }
+
+    private async Task ShowHistory()
+    {
+        var trakIds = AppState.SelectedTraks.Select(t => t.Id)
+            .Concat(AppState.SelectedOvenEvents.Select(e => e.TrakId))
+            .Distinct()
+            .ToList();
+
+        if (!trakIds.Any())
+            return;
+
+        _historyEvents = new List<OvenEvent>();
+        foreach (var trakId in trakIds)
+        {
+            var history = await OvenLogService.GetTrakHistoryAsync(trakId);
+            _historyEvents.AddRange(history);
+        }
+        _historyEvents = _historyEvents.OrderByDescending(e => e.DateIn).ToList();
+        _showHistoryModal = true;
+    }
+
+    private void CloseHistory()
+    {
+        _showHistoryModal = false;
+    }
+
+    private void ResetForm()
+    {
+        AppState.Reset();
+        _trakIdInput = string.Empty;
+        _selectedBoxId = 0;
+        _selectedApplicationId = 0;
+        _selectedBox = null;
+        _bakeTimeInput = "0:30";
+        _startTimeLocal = DateTime.Now;
+        BarcodeInputService.SetBarcodeMode(true);
+        _ = RefreshOvenListAsync();
+    }
+
+    private async Task RecordOvenOn()
+    {
+        if (_selectedBox == null || _selectedBox.HasDigitalDisplay)
+            return;
+
+        await OvenLogService.RecordOvenOnAsync(_selectedBox.Id, AppState.CurrentUser!.Id, _startTimeLocal.ToUniversalTime());
+    }
+
+    private bool CanRecordOvenOn()
+    {
+        return _selectedBox != null && !_selectedBox.HasDigitalDisplay && AppState.CurrentUser != null;
+    }
+
+    private void ToggleMode()
+    {
+        BarcodeInputService.ToggleMode();
+    }
+
+    private void GoToCustomize()
+    {
+        Navigation.NavigateTo("/customize");
+    }
+
+    private void GoToTools()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+
+    private void Exit()
+    {
+        // In a web app, we can navigate to a goodbye page or just reset
+        ResetForm();
+    }
+
+    private string FormatTimeRemaining(TimeSpan? time)
+    {
+        if (time == null || time.Value.TotalSeconds <= 0)
+            return "0:00";
+        return $"{(int)time.Value.TotalHours}:{time.Value.Minutes:D2}";
+    }
+
+    private string FormatTimeSpan(TimeSpan time)
+    {
+        return $"{(int)time.TotalHours}:{time.Minutes:D2}:{time.Seconds:D2}";
+    }
+
+    public void Dispose()
+    {
+        BarcodeInputService.OnBarcodeScanned -= HandleBarcodeScanned;
+        AppState.OnStateChanged -= StateHasChanged;
+        _refreshTimer?.Dispose();
+    }
+}

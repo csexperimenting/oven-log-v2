@@ -1,0 +1,145 @@
+@page "/tools/times"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject AdminService AdminService
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Manage Standard Times</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>Manage Standard Times</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="admin-form">
+        <h3>@(_editingId.HasValue ? "Edit Standard Time" : "Add New Standard Time")</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div class="form-group">
+                <label>Description (hh:mm format)</label>
+                <input type="text" @bind="_description" placeholder="e.g., 0:30" />
+            </div>
+            <div class="form-group">
+                <label>Hours (decimal)</label>
+                <input type="number" @bind="_hours" step="0.001" />
+            </div>
+            <div class="form-group">
+                <label>Barcode</label>
+                <input type="text" @bind="_barcode" placeholder="e.g., *T030*" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-add" @onclick="Save">@(_editingId.HasValue ? "Update" : "Add")</button>
+            @if (_editingId.HasValue)
+            {
+                <button class="btn" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Description</th>
+                <th>Hours</th>
+                <th>Barcode</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.Description</td>
+                    <td>@item.Hours</td>
+                    <td>@item.Barcode</td>
+                    <td>
+                        <button class="btn" @onclick="() => Edit(item)">Edit</button>
+                        <button class="btn btn-remove" @onclick="() => Delete(item.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<StandardTime> _items = new();
+    
+    private string _description = string.Empty;
+    private double _hours;
+    private string _barcode = string.Empty;
+    private int? _editingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _items = await OvenLogService.GetAllStandardTimesAsync();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_description) || string.IsNullOrWhiteSpace(_barcode))
+            return;
+
+        var time = new StandardTime
+        {
+            Id = _editingId ?? 0,
+            Description = _description,
+            Hours = _hours,
+            Barcode = _barcode
+        };
+
+        if (_editingId.HasValue)
+        {
+            await AdminService.UpdateStandardTimeAsync(time);
+        }
+        else
+        {
+            await AdminService.CreateStandardTimeAsync(time);
+        }
+
+        ClearForm();
+        await LoadData();
+    }
+
+    private void Edit(StandardTime item)
+    {
+        _editingId = item.Id;
+        _description = item.Description;
+        _hours = item.Hours;
+        _barcode = item.Barcode;
+    }
+
+    private void CancelEdit()
+    {
+        ClearForm();
+    }
+
+    private void ClearForm()
+    {
+        _editingId = null;
+        _description = string.Empty;
+        _hours = 0;
+        _barcode = string.Empty;
+    }
+
+    private async Task Delete(int id)
+    {
+        await AdminService.DeleteStandardTimeAsync(id);
+        await LoadData();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

@@ -1,0 +1,49 @@
+@page "/tools"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@using OvenLog.Web.Services
+@inject OvenLogService OvenLogService
+@inject AdminService AdminService
+@inject AppStateService AppState
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Tools</PageTitle>
+
+<div class="tools-container">
+    <h2>Tools</h2>
+    
+    <div class="tools-content">
+        <button class="tools-btn" @onclick="NavigateToManufacturers">Manage Manufacturers</button>
+        <button class="tools-btn" @onclick="NavigateToModels">Manage Models</button>
+        <button class="tools-btn" @onclick="NavigateToTypes">Manage Types</button>
+        <button class="tools-btn" @onclick="NavigateToLocations">Manage Locations</button>
+        <button class="tools-btn" @onclick="NavigateToBoxes">Manage Ovens/Boxes</button>
+        <button class="tools-btn" @onclick="NavigateToUsers">Manage Users</button>
+        <button class="tools-btn" @onclick="NavigateToApplications">Manage Applications</button>
+        <button class="tools-btn" @onclick="NavigateToTimes">Manage Standard Times</button>
+        <button class="tools-btn" @onclick="NavigateToHistory">View History Report</button>
+        <button class="tools-btn" @onclick="NavigateToRecent">View Recent Activity</button>
+        <button class="tools-btn" @onclick="NavigateToInOvens">View TRAKs in Ovens</button>
+        <button class="tools-btn" @onclick="NavigateToDatabase">View Entire Database</button>
+        <button class="tools-btn" @onclick="NavigateToRelink">Relink User</button>
+        <button class="tools-btn" @onclick="GoBack">Back to Main</button>
+    </div>
+</div>
+
+@code {
+    private void NavigateToManufacturers() => Navigation.NavigateTo("/tools/manufacturers");
+    private void NavigateToModels() => Navigation.NavigateTo("/tools/models");
+    private void NavigateToTypes() => Navigation.NavigateTo("/tools/types");
+    private void NavigateToLocations() => Navigation.NavigateTo("/tools/locations");
+    private void NavigateToBoxes() => Navigation.NavigateTo("/tools/boxes");
+    private void NavigateToUsers() => Navigation.NavigateTo("/tools/users");
+    private void NavigateToApplications() => Navigation.NavigateTo("/tools/applications");
+    private void NavigateToTimes() => Navigation.NavigateTo("/tools/times");
+    private void NavigateToHistory() => Navigation.NavigateTo("/reports/history");
+    private void NavigateToRecent() => Navigation.NavigateTo("/reports/recent");
+    private void NavigateToInOvens() => Navigation.NavigateTo("/reports/in-ovens");
+    private void NavigateToDatabase() => Navigation.NavigateTo("/reports/database");
+    private void NavigateToRelink() => Navigation.NavigateTo("/tools/relink");
+    private void GoBack() => Navigation.NavigateTo("/");
+}

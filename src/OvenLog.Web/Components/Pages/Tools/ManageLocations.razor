@@ -1,0 +1,111 @@
+@page "/tools/locations"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject AdminService AdminService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Manage Locations</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>Manage Locations</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="admin-form">
+        <h3>@(_editingId.HasValue ? "Edit Location" : "Add New Location")</h3>
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" @bind="_name" placeholder="Location name" />
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-add" @onclick="Save">@(_editingId.HasValue ? "Update" : "Add")</button>
+            @if (_editingId.HasValue)
+            {
+                <button class="btn" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.Name</td>
+                    <td>
+                        <button class="btn" @onclick="() => Edit(item)">Edit</button>
+                        <button class="btn btn-remove" @onclick="() => Delete(item.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<Location> _items = new();
+    private string _name = string.Empty;
+    private int? _editingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _items = await AdminService.GetAllLocationsAsync();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+            return;
+
+        if (_editingId.HasValue)
+        {
+            await AdminService.UpdateLocationAsync(_editingId.Value, _name);
+        }
+        else
+        {
+            await AdminService.CreateLocationAsync(_name);
+        }
+
+        _name = string.Empty;
+        _editingId = null;
+        await LoadData();
+    }
+
+    private void Edit(Location item)
+    {
+        _editingId = item.Id;
+        _name = item.Name;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _name = string.Empty;
+    }
+
+    private async Task Delete(int id)
+    {
+        await AdminService.DeleteLocationAsync(id);
+        await LoadData();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

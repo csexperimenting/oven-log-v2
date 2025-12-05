@@ -1,0 +1,195 @@
+@page "/tools/users"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject AdminService AdminService
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Manage Users</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>Manage Users</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="admin-form">
+        <h3>@(_editingId.HasValue ? "Edit User" : "Add New User")</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div class="form-group">
+                <label>First Name</label>
+                <input type="text" @bind="_firstName" placeholder="First name" />
+            </div>
+            <div class="form-group">
+                <label>Middle Name</label>
+                <input type="text" @bind="_middleName" placeholder="Middle name (optional)" />
+            </div>
+            <div class="form-group">
+                <label>Last Name</label>
+                <input type="text" @bind="_lastName" placeholder="Last name" />
+            </div>
+            <div class="form-group">
+                <label>Badge</label>
+                <input type="text" @bind="_badge" placeholder="Badge number" />
+            </div>
+            <div class="form-group">
+                <label>Login</label>
+                <input type="text" @bind="_login" placeholder="Login username" />
+            </div>
+            <div class="form-group">
+                <label>Active</label>
+                <select @bind="_isActive">
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Dedicated Box (Optional)</label>
+                <select @bind="_dedicatedBoxId">
+                    <option value="">-- None --</option>
+                    @foreach (var box in _boxes)
+                    {
+                        <option value="@box.Id">@box.ToolId (@box.BoxType.Name)</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-add" @onclick="Save">@(_editingId.HasValue ? "Update" : "Add")</button>
+            @if (_editingId.HasValue)
+            {
+                <button class="btn" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Badge</th>
+                <th>Login</th>
+                <th>Active</th>
+                <th>Dedicated Box</th>
+                <th>Aliases</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.FullName</td>
+                    <td>@item.Badge</td>
+                    <td>@item.Login</td>
+                    <td>@(item.IsActive ? "Yes" : "No")</td>
+                    <td>@item.DedicatedBox?.ToolId</td>
+                    <td>@string.Join(", ", item.Aliases.Select(a => a.Alias))</td>
+                    <td>
+                        <button class="btn" @onclick="() => Edit(item)">Edit</button>
+                        <button class="btn btn-remove" @onclick="() => Delete(item.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<User> _items = new();
+    private List<Box> _boxes = new();
+    
+    private string _firstName = string.Empty;
+    private string _middleName = string.Empty;
+    private string _lastName = string.Empty;
+    private string _badge = string.Empty;
+    private string _login = string.Empty;
+    private bool _isActive = true;
+    private int? _dedicatedBoxId;
+    private int? _editingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _items = await OvenLogService.GetAllUsersAsync();
+        _boxes = await OvenLogService.GetAllBoxesAsync();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_firstName) || string.IsNullOrWhiteSpace(_lastName) || 
+            string.IsNullOrWhiteSpace(_badge) || string.IsNullOrWhiteSpace(_login))
+            return;
+
+        var user = new User
+        {
+            Id = _editingId ?? 0,
+            FirstName = _firstName,
+            MiddleName = string.IsNullOrWhiteSpace(_middleName) ? null : _middleName,
+            LastName = _lastName,
+            Badge = _badge,
+            Login = _login,
+            IsActive = _isActive,
+            DedicatedBoxId = _dedicatedBoxId
+        };
+
+        if (_editingId.HasValue)
+        {
+            await AdminService.UpdateUserAsync(user);
+        }
+        else
+        {
+            await AdminService.CreateUserAsync(user);
+        }
+
+        ClearForm();
+        await LoadData();
+    }
+
+    private void Edit(User item)
+    {
+        _editingId = item.Id;
+        _firstName = item.FirstName;
+        _middleName = item.MiddleName ?? string.Empty;
+        _lastName = item.LastName;
+        _badge = item.Badge;
+        _login = item.Login;
+        _isActive = item.IsActive;
+        _dedicatedBoxId = item.DedicatedBoxId;
+    }
+
+    private void CancelEdit()
+    {
+        ClearForm();
+    }
+
+    private void ClearForm()
+    {
+        _editingId = null;
+        _firstName = string.Empty;
+        _middleName = string.Empty;
+        _lastName = string.Empty;
+        _badge = string.Empty;
+        _login = string.Empty;
+        _isActive = true;
+        _dedicatedBoxId = null;
+    }
+
+    private async Task Delete(int id)
+    {
+        await AdminService.DeleteUserAsync(id);
+        await LoadData();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

@@ -1,0 +1,225 @@
+@page "/tools/boxes"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject AdminService AdminService
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Manage Boxes/Ovens</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>Manage Boxes/Ovens</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="admin-form">
+        <h3>@(_editingId.HasValue ? "Edit Box" : "Add New Box")</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div class="form-group">
+                <label>Tool ID</label>
+                <input type="text" @bind="_toolId" placeholder="e.g., E02908" />
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select @bind="_boxTypeId">
+                    <option value="0">-- Select Type --</option>
+                    @foreach (var type in _boxTypes)
+                    {
+                        <option value="@type.Id">@type.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Model</label>
+                <select @bind="_modelId">
+                    <option value="0">-- Select Model --</option>
+                    @foreach (var model in _models)
+                    {
+                        <option value="@model.Id">@model.Name (@model.Manufacturer.Name)</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <select @bind="_locationId">
+                    <option value="0">-- Select Location --</option>
+                    @foreach (var loc in _locations)
+                    {
+                        <option value="@loc.Id">@loc.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Default Temperature</label>
+                <input type="number" @bind="_defaultTemp" step="1" />
+            </div>
+            <div class="form-group">
+                <label>Temperature Scale</label>
+                <select @bind="_tempScale">
+                    <option value="C">Celsius (C)</option>
+                    <option value="F">Fahrenheit (F)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Warm Up Time (hours)</label>
+                <input type="number" @bind="_warmUpTime" step="0.1" />
+            </div>
+            <div class="form-group">
+                <label>Has Digital Display</label>
+                <select @bind="_hasDigitalDisplay">
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-add" @onclick="Save">@(_editingId.HasValue ? "Update" : "Add")</button>
+            @if (_editingId.HasValue)
+            {
+                <button class="btn" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tool ID</th>
+                <th>Type</th>
+                <th>Model</th>
+                <th>Location</th>
+                <th>Default Temp</th>
+                <th>Scale</th>
+                <th>Warm Up</th>
+                <th>Digital Display</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.ToolId</td>
+                    <td>@item.BoxType.Name</td>
+                    <td>@item.Model.Name</td>
+                    <td>@item.Location.Name</td>
+                    <td>@item.DefaultTemperature</td>
+                    <td>@item.TemperatureScale</td>
+                    <td>@item.WarmUpTime</td>
+                    <td>@(item.HasDigitalDisplay ? "Yes" : "No")</td>
+                    <td>
+                        <button class="btn" @onclick="() => Edit(item)">Edit</button>
+                        <button class="btn btn-remove" @onclick="() => Delete(item.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<Box> _items = new();
+    private List<BoxType> _boxTypes = new();
+    private List<Model> _models = new();
+    private List<Location> _locations = new();
+    
+    private string _toolId = string.Empty;
+    private int _boxTypeId;
+    private int _modelId;
+    private int _locationId;
+    private double _defaultTemp = 80;
+    private string _tempScale = "C";
+    private double? _warmUpTime;
+    private bool _hasDigitalDisplay = true;
+    private int? _editingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _items = await OvenLogService.GetAllBoxesAsync();
+        _boxTypes = await AdminService.GetAllBoxTypesAsync();
+        _models = await AdminService.GetAllModelsAsync();
+        _locations = await AdminService.GetAllLocationsAsync();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_toolId) || _boxTypeId == 0 || _modelId == 0 || _locationId == 0)
+            return;
+
+        var box = new Box
+        {
+            Id = _editingId ?? 0,
+            ToolId = _toolId,
+            BoxTypeId = _boxTypeId,
+            ModelId = _modelId,
+            LocationId = _locationId,
+            DefaultTemperature = _defaultTemp,
+            TemperatureScale = _tempScale,
+            WarmUpTime = _warmUpTime,
+            HasDigitalDisplay = _hasDigitalDisplay
+        };
+
+        if (_editingId.HasValue)
+        {
+            await AdminService.UpdateBoxAsync(box);
+        }
+        else
+        {
+            await AdminService.CreateBoxAsync(box);
+        }
+
+        ClearForm();
+        await LoadData();
+    }
+
+    private void Edit(Box item)
+    {
+        _editingId = item.Id;
+        _toolId = item.ToolId;
+        _boxTypeId = item.BoxTypeId;
+        _modelId = item.ModelId;
+        _locationId = item.LocationId;
+        _defaultTemp = item.DefaultTemperature;
+        _tempScale = item.TemperatureScale;
+        _warmUpTime = item.WarmUpTime;
+        _hasDigitalDisplay = item.HasDigitalDisplay;
+    }
+
+    private void CancelEdit()
+    {
+        ClearForm();
+    }
+
+    private void ClearForm()
+    {
+        _editingId = null;
+        _toolId = string.Empty;
+        _boxTypeId = 0;
+        _modelId = 0;
+        _locationId = 0;
+        _defaultTemp = 80;
+        _tempScale = "C";
+        _warmUpTime = null;
+        _hasDigitalDisplay = true;
+    }
+
+    private async Task Delete(int id)
+    {
+        await AdminService.DeleteBoxAsync(id);
+        await LoadData();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

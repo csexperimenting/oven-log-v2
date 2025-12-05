@@ -1,0 +1,99 @@
+@page "/reports/recent"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Recent Activity</PageTitle>
+
+<div class="report-container">
+    <div class="admin-header">
+        <h2>Recent Activity (Last 24 Hours)</h2>
+        <div>
+            <label>Hours:</label>
+            <input type="number" @bind="_hours" min="1" max="168" style="width: 60px; margin-right: 10px;" />
+            <button class="btn" @onclick="RefreshData">Refresh</button>
+            <button class="btn" @onclick="GoBack">Back to Tools</button>
+        </div>
+    </div>
+
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th>TRAK ID</th>
+                <th>Part Number</th>
+                <th>Oven</th>
+                <th>Location</th>
+                <th>Temperature</th>
+                <th>Application</th>
+                <th>Date In</th>
+                <th>User In</th>
+                <th>Date Out</th>
+                <th>User Out</th>
+                <th>Status</th>
+                <th>Time Remaining</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var evt in _events)
+            {
+                <tr class="@(evt.IsInOven ? "in-oven" : "")">
+                    <td>@evt.Trak.TrakId</td>
+                    <td>@evt.Trak.Part?.PartNumber</td>
+                    <td>@evt.Box.ToolId</td>
+                    <td>@evt.Box.Location.Name</td>
+                    <td>@evt.Temperature °@evt.Box.TemperatureScale</td>
+                    <td>@evt.Application?.Name</td>
+                    <td>@evt.DateIn.ToLocalTime().ToString("g")</td>
+                    <td>@evt.UserIn.FullName</td>
+                    <td>@(evt.DateOut?.ToLocalTime().ToString("g") ?? "-")</td>
+                    <td>@evt.UserOut?.FullName</td>
+                    <td>@(evt.IsInOven ? "In Oven" : "Completed")</td>
+                    <td class="@(evt.TimeRemaining?.TotalMinutes <= 5 ? "time-warning" : "")">
+                        @(evt.IsInOven ? FormatTimeRemaining(evt.TimeRemaining) : "-")
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div style="margin-top: 10px;">
+        <strong>Total Records: @_events.Count</strong>
+        <span style="margin-left: 20px;">In Oven: @_events.Count(e => e.IsInOven)</span>
+        <span style="margin-left: 20px;">Completed: @_events.Count(e => !e.IsInOven)</span>
+    </div>
+</div>
+
+<style>
+    .in-oven {
+        background-color: #ffffcc !important;
+    }
+</style>
+
+@code {
+    private List<OvenEvent> _events = new();
+    private int _hours = 24;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        _events = await OvenLogService.GetRecentActivityAsync(_hours);
+    }
+
+    private string FormatTimeRemaining(TimeSpan? time)
+    {
+        if (time == null || time.Value.TotalSeconds <= 0)
+            return "0:00";
+        return $"{(int)time.Value.TotalHours}:{time.Value.Minutes:D2}";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

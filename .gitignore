@@ -1,0 +1,22 @@
+pdf_images/
+
+# .NET build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# SQLite database files
+*.db
+*.db-journal
+
+# OS files
+.DS_Store
+Thumbs.db

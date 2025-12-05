@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OvenLog.Domain", "OvenLog.Domain\OvenLog.Domain.csproj", "{24DA81FD-4B29-404B-A66A-3D4A7FA12BD7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OvenLog.Infrastructure", "OvenLog.Infrastructure\OvenLog.Infrastructure.csproj", "{8E0D0CE6-B3CA-462D-807E-1A42C490C295}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OvenLog.Web", "OvenLog.Web\OvenLog.Web.csproj", "{7E1883C2-E315-4E42-8376-F17C18663CE7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{24DA81FD-4B29-404B-A66A-3D4A7FA12BD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{24DA81FD-4B29-404B-A66A-3D4A7FA12BD7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{24DA81FD-4B29-404B-A66A-3D4A7FA12BD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{24DA81FD-4B29-404B-A66A-3D4A7FA12BD7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E0D0CE6-B3CA-462D-807E-1A42C490C295}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E0D0CE6-B3CA-462D-807E-1A42C490C295}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E0D0CE6-B3CA-462D-807E-1A42C490C295}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E0D0CE6-B3CA-462D-807E-1A42C490C295}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7E1883C2-E315-4E42-8376-F17C18663CE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E1883C2-E315-4E42-8376-F17C18663CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E1883C2-E315-4E42-8376-F17C18663CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E1883C2-E315-4E42-8376-F17C18663CE7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

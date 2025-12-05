@@ -1,0 +1,137 @@
+@page "/reports/history"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - History Report</PageTitle>
+
+<div class="report-container">
+    <div class="admin-header">
+        <h2>History Report</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="filter-section" style="margin-bottom: 20px;">
+        <label>TRAK ID Filter:</label>
+        <input type="text" @bind="_trakFilter" @bind:event="oninput" placeholder="Enter TRAK ID" style="margin-right: 10px;" />
+        <label>Date From:</label>
+        <input type="date" @bind="_dateFrom" style="margin-right: 10px;" />
+        <label>Date To:</label>
+        <input type="date" @bind="_dateTo" style="margin-right: 10px;" />
+        <button class="btn" @onclick="ApplyFilter">Apply Filter</button>
+        <button class="btn" @onclick="ClearFilter">Clear</button>
+    </div>
+
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th>TRAK ID</th>
+                <th>Part Number</th>
+                <th>Serial Number</th>
+                <th>Oven</th>
+                <th>Location</th>
+                <th>Temperature</th>
+                <th>Application</th>
+                <th>Date In</th>
+                <th>User In</th>
+                <th>Date Out</th>
+                <th>User Out</th>
+                <th>Bake Time</th>
+                <th>Actual Time</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var evt in _filteredEvents)
+            {
+                <tr>
+                    <td>@evt.Trak.TrakId</td>
+                    <td>@evt.Trak.Part?.PartNumber</td>
+                    <td>@evt.Trak.SerialNumber</td>
+                    <td>@evt.Box.ToolId</td>
+                    <td>@evt.Box.Location.Name</td>
+                    <td>@evt.Temperature °@evt.Box.TemperatureScale</td>
+                    <td>@evt.Application?.Name</td>
+                    <td>@evt.DateIn.ToLocalTime().ToString("g")</td>
+                    <td>@evt.UserIn.FullName</td>
+                    <td>@(evt.DateOut?.ToLocalTime().ToString("g") ?? "In Oven")</td>
+                    <td>@evt.UserOut?.FullName</td>
+                    <td>@FormatHours(evt.BakeTimeHours)</td>
+                    <td>@FormatTimeSpan(evt.ActualBakeTime)</td>
+                    <td>@evt.Note</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div style="margin-top: 10px;">
+        <strong>Total Records: @_filteredEvents.Count</strong>
+    </div>
+</div>
+
+@code {
+    private List<OvenEvent> _allEvents = new();
+    private List<OvenEvent> _filteredEvents = new();
+    private string _trakFilter = string.Empty;
+    private DateTime? _dateFrom;
+    private DateTime? _dateTo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allEvents = await OvenLogService.GetAllEventsAsync();
+        _filteredEvents = _allEvents;
+    }
+
+    private void ApplyFilter()
+    {
+        _filteredEvents = _allEvents;
+
+        if (!string.IsNullOrWhiteSpace(_trakFilter))
+        {
+            _filteredEvents = _filteredEvents
+                .Where(e => e.Trak.TrakId.Contains(_trakFilter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        if (_dateFrom.HasValue)
+        {
+            _filteredEvents = _filteredEvents
+                .Where(e => e.DateIn >= _dateFrom.Value.ToUniversalTime())
+                .ToList();
+        }
+
+        if (_dateTo.HasValue)
+        {
+            _filteredEvents = _filteredEvents
+                .Where(e => e.DateIn <= _dateTo.Value.AddDays(1).ToUniversalTime())
+                .ToList();
+        }
+    }
+
+    private void ClearFilter()
+    {
+        _trakFilter = string.Empty;
+        _dateFrom = null;
+        _dateTo = null;
+        _filteredEvents = _allEvents;
+    }
+
+    private string FormatHours(double hours)
+    {
+        var h = (int)hours;
+        var m = (int)((hours - h) * 60);
+        return $"{h}:{m:D2}";
+    }
+
+    private string FormatTimeSpan(TimeSpan time)
+    {
+        return $"{(int)time.TotalHours}:{time.Minutes:D2}:{time.Seconds:D2}";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

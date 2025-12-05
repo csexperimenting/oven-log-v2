@@ -1,0 +1,175 @@
+@page "/tools/applications"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject AdminService AdminService
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Manage Applications</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>Manage Applications</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="admin-form">
+        <h3>@(_editingId.HasValue ? "Edit Application" : "Add New Application")</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" @bind="_name" placeholder="Application name" />
+            </div>
+            <div class="form-group">
+                <label>Default Bake Time (hours)</label>
+                <input type="number" @bind="_defaultBakeTime" step="0.1" />
+            </div>
+            <div class="form-group">
+                <label>Default Temperature</label>
+                <input type="number" @bind="_defaultTemp" step="1" />
+            </div>
+            <div class="form-group">
+                <label>Min Temperature</label>
+                <input type="number" @bind="_minTemp" step="1" />
+            </div>
+            <div class="form-group">
+                <label>Max Temperature</label>
+                <input type="number" @bind="_maxTemp" step="1" />
+            </div>
+            <div class="form-group">
+                <label>Barcode</label>
+                <input type="text" @bind="_barcode" placeholder="e.g., *ABLEFILM*" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-add" @onclick="Save">@(_editingId.HasValue ? "Update" : "Add")</button>
+            @if (_editingId.HasValue)
+            {
+                <button class="btn" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Default Bake Time</th>
+                <th>Default Temp</th>
+                <th>Min Temp</th>
+                <th>Max Temp</th>
+                <th>Barcode</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.Name</td>
+                    <td>@item.DefaultBakeTime</td>
+                    <td>@item.DefaultTemperature</td>
+                    <td>@item.MinTemperature</td>
+                    <td>@item.MaxTemperature</td>
+                    <td>@item.Barcode</td>
+                    <td>
+                        <button class="btn" @onclick="() => Edit(item)">Edit</button>
+                        <button class="btn btn-remove" @onclick="() => Delete(item.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<Application> _items = new();
+    
+    private string _name = string.Empty;
+    private double? _defaultBakeTime;
+    private double? _defaultTemp;
+    private double? _minTemp;
+    private double? _maxTemp;
+    private string _barcode = string.Empty;
+    private int? _editingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _items = await OvenLogService.GetAllApplicationsAsync();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+            return;
+
+        var app = new Application
+        {
+            Id = _editingId ?? 0,
+            Name = _name,
+            DefaultBakeTime = _defaultBakeTime,
+            DefaultTemperature = _defaultTemp,
+            MinTemperature = _minTemp,
+            MaxTemperature = _maxTemp,
+            Barcode = string.IsNullOrWhiteSpace(_barcode) ? null : _barcode
+        };
+
+        if (_editingId.HasValue)
+        {
+            await AdminService.UpdateApplicationAsync(app);
+        }
+        else
+        {
+            await AdminService.CreateApplicationAsync(app);
+        }
+
+        ClearForm();
+        await LoadData();
+    }
+
+    private void Edit(Application item)
+    {
+        _editingId = item.Id;
+        _name = item.Name;
+        _defaultBakeTime = item.DefaultBakeTime;
+        _defaultTemp = item.DefaultTemperature;
+        _minTemp = item.MinTemperature;
+        _maxTemp = item.MaxTemperature;
+        _barcode = item.Barcode ?? string.Empty;
+    }
+
+    private void CancelEdit()
+    {
+        ClearForm();
+    }
+
+    private void ClearForm()
+    {
+        _editingId = null;
+        _name = string.Empty;
+        _defaultBakeTime = null;
+        _defaultTemp = null;
+        _minTemp = null;
+        _maxTemp = null;
+        _barcode = string.Empty;
+    }
+
+    private async Task Delete(int id)
+    {
+        await AdminService.DeleteApplicationAsync(id);
+        await LoadData();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}
