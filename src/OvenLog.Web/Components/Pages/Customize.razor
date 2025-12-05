@@ -1,0 +1,252 @@
+@page "/customize"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@using OvenLog.Web.Services
+@inject OvenLogService OvenLogService
+@inject AppStateService AppState
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Customize</PageTitle>
+
+<div class="customize-container">
+    <h2>Customize Oven Log</h2>
+    
+    <div class="customize-content">
+        <!-- Oven List -->
+        <div class="list-panel">
+            <h3>Select Ovens to Display</h3>
+            <div class="list-content">
+                @foreach (var box in _allBoxes)
+                {
+                    var isSelected = _selectedBoxIds.Contains(box.Id);
+                    <div class="list-item @(isSelected ? "selected" : "")" @onclick="() => ToggleBox(box.Id)">
+                        <input type="checkbox" checked="@isSelected" @onclick:stopPropagation="true" @onchange="() => ToggleBox(box.Id)" />
+                        <span>@box.ToolId (@box.BoxType.Name) - @box.Location.Name</span>
+                    </div>
+                }
+            </div>
+            <div class="list-actions">
+                <button class="btn" @onclick="SelectAllBoxes">Select All</button>
+                <button class="btn" @onclick="DeselectAllBoxes">Deselect All</button>
+            </div>
+        </div>
+
+        <!-- Application List -->
+        <div class="list-panel">
+            <h3>Applications</h3>
+            <div class="list-content">
+                @foreach (var app in _applications)
+                {
+                    <div class="list-item" @onclick="() => SelectApplication(app)">
+                        <span>@app.Name</span>
+                        <span class="barcode-preview">@app.Barcode</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Standard Time List -->
+        <div class="list-panel">
+            <h3>Standard Times</h3>
+            <div class="list-content">
+                @foreach (var time in _standardTimes)
+                {
+                    <div class="list-item" @onclick="() => SelectTime(time)">
+                        <span>@time.Description (@time.Hours hrs)</span>
+                        <span class="barcode-preview">@time.Barcode</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="button-bar">
+        <button class="btn btn-add" @onclick="SaveSelections">Save Selections</button>
+        <button class="btn" @onclick="GenerateBarcodeSheet">Generate Barcode Sheet</button>
+        <button class="btn" @onclick="GoBack">Back to Main</button>
+    </div>
+</div>
+
+@if (_showBarcodeSheet)
+{
+    <div class="modal-overlay" @onclick="CloseBarcodeSheet">
+        <div class="modal-content barcode-sheet" @onclick:stopPropagation="true" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="no-print">
+                <button class="btn" @onclick="PrintBarcodeSheet">Print</button>
+                <button class="btn" @onclick="CloseBarcodeSheet">Close</button>
+            </div>
+            
+            <h2>Barcode Sheet</h2>
+            
+            <!-- Action Barcodes -->
+            <div class="barcode-section">
+                <h3>Action Barcodes</h3>
+                <div class="barcode-grid">
+                    <div class="barcode-item">
+                        <div class="barcode-text">*RESET*</div>
+                        <div class="barcode-label">RESET</div>
+                    </div>
+                    <div class="barcode-item">
+                        <div class="barcode-text">*OVENON*</div>
+                        <div class="barcode-label">OVEN ON</div>
+                    </div>
+                    <div class="barcode-item">
+                        <div class="barcode-text">*ADD*</div>
+                        <div class="barcode-label">ADD</div>
+                    </div>
+                    <div class="barcode-item">
+                        <div class="barcode-text">*REMOVE*</div>
+                        <div class="barcode-label">REMOVE</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oven Barcodes -->
+            <div class="barcode-section">
+                <h3>Oven Barcodes</h3>
+                <div class="barcode-grid">
+                    @foreach (var box in _selectedBoxes)
+                    {
+                        <div class="barcode-item">
+                            <div class="barcode-text">*@box.ToolId*</div>
+                            <div class="barcode-label">@box.ToolId (@box.BoxType.Name)</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Application Barcodes -->
+            <div class="barcode-section">
+                <h3>Application Barcodes</h3>
+                <div class="barcode-grid">
+                    @foreach (var app in _applications.Where(a => !string.IsNullOrEmpty(a.Barcode)))
+                    {
+                        <div class="barcode-item">
+                            <div class="barcode-text">@app.Barcode</div>
+                            <div class="barcode-label">@app.Name</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Time Barcodes -->
+            <div class="barcode-section">
+                <h3>Time Barcodes</h3>
+                <div class="barcode-grid">
+                    @foreach (var time in _standardTimes)
+                    {
+                        <div class="barcode-item">
+                            <div class="barcode-text">@time.Barcode</div>
+                            <div class="barcode-label">@time.Description</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Box> _allBoxes = new();
+    private List<Box> _selectedBoxes = new();
+    private HashSet<int> _selectedBoxIds = new();
+    private List<Application> _applications = new();
+    private List<StandardTime> _standardTimes = new();
+    private bool _showBarcodeSheet;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allBoxes = await OvenLogService.GetAllBoxesAsync();
+        _applications = await OvenLogService.GetAllApplicationsAsync();
+        _standardTimes = await OvenLogService.GetAllStandardTimesAsync();
+
+        // Load user's saved selections
+        if (AppState.CurrentUser != null)
+        {
+            var savedSelections = await OvenLogService.GetUserOvenSelectionsAsync(AppState.CurrentUser.Id);
+            if (savedSelections.Any())
+            {
+                _selectedBoxIds = new HashSet<int>(savedSelections);
+            }
+            else
+            {
+                // Default to all boxes selected
+                _selectedBoxIds = new HashSet<int>(_allBoxes.Select(b => b.Id));
+            }
+        }
+        else
+        {
+            _selectedBoxIds = new HashSet<int>(_allBoxes.Select(b => b.Id));
+        }
+
+        UpdateSelectedBoxes();
+    }
+
+    private void ToggleBox(int boxId)
+    {
+        if (_selectedBoxIds.Contains(boxId))
+            _selectedBoxIds.Remove(boxId);
+        else
+            _selectedBoxIds.Add(boxId);
+        
+        UpdateSelectedBoxes();
+    }
+
+    private void SelectAllBoxes()
+    {
+        _selectedBoxIds = new HashSet<int>(_allBoxes.Select(b => b.Id));
+        UpdateSelectedBoxes();
+    }
+
+    private void DeselectAllBoxes()
+    {
+        _selectedBoxIds.Clear();
+        UpdateSelectedBoxes();
+    }
+
+    private void UpdateSelectedBoxes()
+    {
+        _selectedBoxes = _allBoxes.Where(b => _selectedBoxIds.Contains(b.Id)).ToList();
+    }
+
+    private void SelectApplication(Application app)
+    {
+        AppState.SelectedApplication = app;
+    }
+
+    private void SelectTime(StandardTime time)
+    {
+        AppState.BakeTimeHours = time.Hours;
+    }
+
+    private async Task SaveSelections()
+    {
+        if (AppState.CurrentUser != null)
+        {
+            await OvenLogService.SaveUserOvenSelectionsAsync(AppState.CurrentUser.Id, _selectedBoxIds.ToList());
+        }
+    }
+
+    private void GenerateBarcodeSheet()
+    {
+        _showBarcodeSheet = true;
+    }
+
+    private void CloseBarcodeSheet()
+    {
+        _showBarcodeSheet = false;
+    }
+
+    private async Task PrintBarcodeSheet()
+    {
+        // Trigger browser print dialog
+        await Task.CompletedTask;
+        // Note: In Blazor Server, we'd use JS interop for window.print()
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

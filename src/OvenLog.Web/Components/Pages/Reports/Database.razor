@@ -1,0 +1,262 @@
+@page "/reports/database"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject OvenLogService OvenLogService
+@inject AdminService AdminService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Oven Log - Database View</PageTitle>
+
+<div class="report-container">
+    <div class="admin-header">
+        <h2>View Entire Database</h2>
+        <button class="btn" @onclick="GoBack">Back to Tools</button>
+    </div>
+
+    <div class="tab-buttons" style="margin-bottom: 20px;">
+        <button class="btn @(_activeTab == "events" ? "btn-add" : "")" @onclick="SetTabEvents">Oven Events</button>
+        <button class="btn @(_activeTab == "boxes" ? "btn-add" : "")" @onclick="SetTabBoxes">Boxes/Ovens</button>
+        <button class="btn @(_activeTab == "traks" ? "btn-add" : "")" @onclick="SetTabTraks">TRAKs</button>
+        <button class="btn @(_activeTab == "users" ? "btn-add" : "")" @onclick="SetTabUsers">Users</button>
+        <button class="btn @(_activeTab == "applications" ? "btn-add" : "")" @onclick="SetTabApplications">Applications</button>
+        <button class="btn @(_activeTab == "times" ? "btn-add" : "")" @onclick="SetTabTimes">Standard Times</button>
+    </div>
+
+    @if (_activeTab == "events")
+    {
+        <h3>Oven Events (@_events.Count records)</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>TRAK</th>
+                    <th>Box</th>
+                    <th>User In</th>
+                    <th>Date In</th>
+                    <th>User Out</th>
+                    <th>Date Out</th>
+                    <th>Temperature</th>
+                    <th>Bake Time</th>
+                    <th>Application</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var evt in _events)
+                {
+                    <tr>
+                        <td>@evt.Id</td>
+                        <td>@evt.Trak.TrakId</td>
+                        <td>@evt.Box.ToolId</td>
+                        <td>@evt.UserIn.FullName</td>
+                        <td>@evt.DateIn.ToLocalTime().ToString("g")</td>
+                        <td>@evt.UserOut?.FullName</td>
+                        <td>@evt.DateOut?.ToLocalTime().ToString("g")</td>
+                        <td>@evt.Temperature</td>
+                        <td>@evt.BakeTimeHours</td>
+                        <td>@evt.Application?.Name</td>
+                        <td>@evt.Note</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_activeTab == "boxes")
+    {
+        <h3>Boxes/Ovens (@_boxes.Count records)</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tool ID</th>
+                    <th>Type</th>
+                    <th>Model</th>
+                    <th>Manufacturer</th>
+                    <th>Location</th>
+                    <th>Default Temp</th>
+                    <th>Scale</th>
+                    <th>Warm Up Time</th>
+                    <th>Has Digital Display</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var box in _boxes)
+                {
+                    <tr>
+                        <td>@box.Id</td>
+                        <td>@box.ToolId</td>
+                        <td>@box.BoxType.Name</td>
+                        <td>@box.Model.Name</td>
+                        <td>@box.Model.Manufacturer.Name</td>
+                        <td>@box.Location.Name</td>
+                        <td>@box.DefaultTemperature</td>
+                        <td>@box.TemperatureScale</td>
+                        <td>@box.WarmUpTime</td>
+                        <td>@box.HasDigitalDisplay</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_activeTab == "traks")
+    {
+        <h3>TRAKs (@_traks.Count records)</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>TRAK ID</th>
+                    <th>Serial Number</th>
+                    <th>Work Order</th>
+                    <th>Part Number</th>
+                    <th>Part Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var trak in _traks)
+                {
+                    <tr>
+                        <td>@trak.Id</td>
+                        <td>@trak.TrakId</td>
+                        <td>@trak.SerialNumber</td>
+                        <td>@trak.WorkOrder</td>
+                        <td>@trak.Part?.PartNumber</td>
+                        <td>@trak.Part?.Description</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_activeTab == "users")
+    {
+        <h3>Users (@_users.Count records)</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>First Name</th>
+                    <th>Middle Name</th>
+                    <th>Last Name</th>
+                    <th>Badge</th>
+                    <th>Login</th>
+                    <th>Active</th>
+                    <th>Dedicated Box</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr>
+                        <td>@user.Id</td>
+                        <td>@user.FirstName</td>
+                        <td>@user.MiddleName</td>
+                        <td>@user.LastName</td>
+                        <td>@user.Badge</td>
+                        <td>@user.Login</td>
+                        <td>@user.IsActive</td>
+                        <td>@user.DedicatedBox?.ToolId</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_activeTab == "applications")
+    {
+        <h3>Applications (@_applications.Count records)</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Default Bake Time</th>
+                    <th>Default Temp</th>
+                    <th>Min Temp</th>
+                    <th>Max Temp</th>
+                    <th>Barcode</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var app in _applications)
+                {
+                    <tr>
+                        <td>@app.Id</td>
+                        <td>@app.Name</td>
+                        <td>@app.DefaultBakeTime</td>
+                        <td>@app.DefaultTemperature</td>
+                        <td>@app.MinTemperature</td>
+                        <td>@app.MaxTemperature</td>
+                        <td>@app.Barcode</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_activeTab == "times")
+    {
+        <h3>Standard Times (@_standardTimes.Count records)</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                    <th>Hours</th>
+                    <th>Barcode</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var time in _standardTimes)
+                {
+                    <tr>
+                        <td>@time.Id</td>
+                        <td>@time.Description</td>
+                        <td>@time.Hours</td>
+                        <td>@time.Barcode</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private string _activeTab = "events";
+    private List<OvenEvent> _events = new();
+    private List<Box> _boxes = new();
+    private List<Trak> _traks = new();
+    private List<User> _users = new();
+    private List<Application> _applications = new();
+    private List<StandardTime> _standardTimes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAllData();
+    }
+
+    private async Task LoadAllData()
+    {
+        _events = await OvenLogService.GetAllEventsAsync();
+        _boxes = await OvenLogService.GetAllBoxesAsync();
+        _traks = await OvenLogService.GetAvailableTraksAsync();
+        _users = await OvenLogService.GetAllUsersAsync();
+        _applications = await OvenLogService.GetAllApplicationsAsync();
+        _standardTimes = await OvenLogService.GetAllStandardTimesAsync();
+    }
+
+    private void SetTabEvents() => _activeTab = "events";
+    private void SetTabBoxes() => _activeTab = "boxes";
+    private void SetTabTraks() => _activeTab = "traks";
+    private void SetTabUsers() => _activeTab = "users";
+    private void SetTabApplications() => _activeTab = "applications";
+    private void SetTabTimes() => _activeTab = "times";
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+}

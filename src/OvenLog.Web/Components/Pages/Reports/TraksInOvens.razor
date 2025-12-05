@@ -1,0 +1,125 @@
+@page "/reports/in-ovens"
+@using OvenLog.Domain.Entities
+@using OvenLog.Infrastructure.Services
+@inject OvenLogService OvenLogService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+@implements IDisposable
+
+<PageTitle>Oven Log - TRAKs in Ovens</PageTitle>
+
+<div class="report-container">
+    <div class="admin-header">
+        <h2>TRAKs Currently in Ovens</h2>
+        <div>
+            <button class="btn" @onclick="RefreshData">Refresh</button>
+            <button class="btn" @onclick="GoBack">Back to Tools</button>
+        </div>
+    </div>
+
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th>Oven</th>
+                <th>Location</th>
+                <th>TRAK ID</th>
+                <th>Part Number</th>
+                <th>Serial Number</th>
+                <th>Qty</th>
+                <th>Temperature</th>
+                <th>Application</th>
+                <th>Date In</th>
+                <th>User In</th>
+                <th>Bake Time</th>
+                <th>Time Remaining</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var evt in _events)
+            {
+                var timeClass = evt.TimeRemaining?.TotalMinutes <= 5 ? "time-warning" : 
+                               evt.TimeRemaining?.TotalMinutes <= 15 ? "time-caution" : "";
+                <tr>
+                    <td>@evt.Box.ToolId</td>
+                    <td>@evt.Box.Location.Name</td>
+                    <td>@evt.Trak.TrakId</td>
+                    <td>@evt.Trak.Part?.PartNumber</td>
+                    <td>@evt.Trak.SerialNumber</td>
+                    <td>@evt.Quantity</td>
+                    <td>@evt.Temperature °@evt.Box.TemperatureScale</td>
+                    <td>@evt.Application?.Name</td>
+                    <td>@evt.DateIn.ToLocalTime().ToString("g")</td>
+                    <td>@evt.UserIn.FullName</td>
+                    <td>@FormatHours(evt.BakeTimeHours)</td>
+                    <td class="@timeClass">@FormatTimeRemaining(evt.TimeRemaining)</td>
+                    <td>@evt.Note</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div style="margin-top: 10px;">
+        <strong>Total TRAKs in Ovens: @_events.Count</strong>
+    </div>
+</div>
+
+<style>
+    .time-warning {
+        color: #FF0000;
+        font-weight: bold;
+    }
+    .time-caution {
+        color: #FF8C00;
+        font-weight: bold;
+    }
+</style>
+
+@code {
+    private List<OvenEvent> _events = new();
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+        
+        // Auto-refresh every 30 seconds
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshData();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task RefreshData()
+    {
+        _events = await OvenLogService.GetTraksInOvensAsync();
+    }
+
+    private string FormatHours(double hours)
+    {
+        var h = (int)hours;
+        var m = (int)((hours - h) * 60);
+        return $"{h}:{m:D2}";
+    }
+
+    private string FormatTimeRemaining(TimeSpan? time)
+    {
+        if (time == null || time.Value.TotalSeconds <= 0)
+            return "DONE";
+        return $"{(int)time.Value.TotalHours}:{time.Value.Minutes:D2}";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/tools");
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+}
